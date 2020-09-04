@@ -38,78 +38,81 @@ PLATFORM = HOST
 
 # General flags
 GEN_FLAGS = -Wall \
-	    -Werror \
-	    -g \
-	    -O0 \
-	    -std=c99
+	        -Werror \
+	        -g \
+			-O0 \
+	    	-std=c99
 
 # Target
 TARGET = c1m2
 
-ifeq ($(PLATFORM),MSP432)
-	# Architectures Specific Flags
-	LINKER_FILE = -T msp432p401r.lds 
-	CPU = cortex-m4
-	ARCH = armv7e-m
-	SPECS = nosys.specs
-	EXTRA = -mthumb \
-		-mfloat-abi=hard \
-		-mfpu=fpv4-sp-d16
+# Architectures Specific Flags
+LINKER_FILE = ../msp432p401r.lds 
+CPU = cortex-m4
+ARCH = thumb
+SPECS = nosys.specs
 
-	# Compiler Flags and Defines
-	CC = arm-none-eabi-gcc 
-	LD = arm-none-eabi-ld
-	LDFLAGS = -Wl,-Map=$(TARGET).map -T -L ../ $(LINKER_FILE)
-	CFLAGS = $(GEN_FLAGS) $(EXTRA) -mcpu=$(CPU) -march=$(ARCH) --specs=$(SPECS)
-	CPPFLAGs = -DMSP432 $(INCLUDES)
+# Compiler Flags and Defines
+LD = arm-none-eabi-ld
 
-	# Architecture specific source codes
-	SOURCE =  main.c \
-		  memory.c \
-		  interrupts_msp432p401r_gcc.c \
-		  startup_msp432p401r_gcc.c \
-		  system_msp432p401r.c
-
-	SIZE = arm-none-eabi-size
-
-else
-   	# Compiler Flags and Defines
-	CC = gcc
-	CFLAGS = $(GEN_FLAGS)
-	CPPFLAGS = -DHOST $(INCLUDES)
-	LDFLAGS = -Wl,-Map=$(TARGET).map
+ifeq ($(PLATFORM),HOST)
+	CC = gcc $(GENFLAGS)
+	CFLAGS = -D$(PLATFORM)
+	LDFLAGS = -Wl,-Map=$(TARGET).map 
 	SIZE = size
+endif
 
+ifeq ($(PLATFORM),MSP432)
+   	CC = arm-none-eabi-gcc $(GENFLAGS)
+	CFLAGS = -D$(PLATFORM) -mcpu=$(CPU) -m$(ARCH) -march=armv7e-m -mfloat-abi=hard -mfpu=fpv4-sp-d16 --specs=$(SPECS)
+	LDFLAGS = -T $(LINKER_FILE) -Wl,-Map=$(TARGET).map 
+	SIZE = arm-none-eabi-size
 endif
 
 OBJS = $(SOURCES:.c=.o)
-DEPS = $(SOURCES:.c=.d)
+MAPS = $(SOURCES:.C=.map)
+OUTS = $(SOURCES:.C=.out)
 ASMS = $(SOURCES:.c=.asm)
-PREP = $(SOURCES:.c=.i)
+DEPEN = $(SOURCES:.c=.d)                          
+CLEANS = $(TARGET).o $(TARGET).out $(TARGET).map 
+%.o : %.c
+	$(CC) $(INCLUDES) -c $< $(CFLAGS) -o $@
 
-%.o:%.c
-	$(CC) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
-	
-%.asm:%.c
-	$(CC) -S $< $(CFLAGS) $(CPPFLAGS) -o $@
+%.i : %.c
+	$(CC) -E $< $(INCLUDES) $(CFLAGS)
 
-%.i:%.c
-	$(CC) -E $< $(CPPFLAGS) -o $@
+%.d: %.c
+	@set -e; rm -f $@; \
+	$(CC) $(INCLUDES) -MM $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
 
-%.d:%.c
-	$(CC) -E -M $< $(CPPFLAGS) -o $@
+%.asm : %.c
+	$(CC) -S $< $(INCLUDES) $(CFLAGS)
 
-.PHONY: compile-all
-compile-all: $(OBJS)
 
 .PHONY: build
-build: $(TARGET).out
+build: all
+
+.PHONY: all
+all: $(TARGET).out $(DEPEN)
 
 $(TARGET).out: $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@
-	$(SIZE) $@
+	$(CC) $(INCLUDES) $(OBJS) $(CFLAGS)  $(LDFLAGS) -o $@
+	$(SIZE) -Atd $(OBJS) $(TARGET).out
+
+$(DEPEN): $(SOURCES)
+	@set -e; rm -f $@; \
+	$(CC) $(INCLUDES) -MM $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+
+.PHONY: compile-all
+compile-all:
+	$(CC) $(INCLUDES) -c $(SOURCES) $(CFLAGS)
+
 
 .PHONY: clean
 clean:
-	rm -f $(OBJS) $(DEPS) $(ASMS) $(PREP) $(TARGET).out $(TARGET).map
-
+	rm -f *.asm *.o *.d *.map *.out *.i *.size
