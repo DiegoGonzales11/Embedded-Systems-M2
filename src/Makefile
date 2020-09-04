@@ -15,9 +15,7 @@
 # Use: make [TARGET] [PLATFORM-OVERRIDES]
 #
 # Build Targets:
-#      <FILE>.o - Generate a object file call <FILE>.o
-#      <FILE>.i - Generate a preprocessed file call <FILE>.i
-#      <FILE>.asm - Generate a assembly file call <FILE>.asm
+#     
 #      compile-all - Compiles all sources files but do not link 
 #      build - Builds all the objects files
 #      clean - Remove all the generated files
@@ -28,7 +26,7 @@
 #
 #
 # Author: Gonzales Loayza Pool Diego
-# Date: 12/07/2020
+# Date: 03/09/2020
 #    
 #------------------------------------------------------------------------------
 include sources.mk
@@ -73,8 +71,8 @@ OBJS = $(SOURCES:.c=.o)
 MAPS = $(SOURCES:.C=.map)
 OUTS = $(SOURCES:.C=.out)
 ASMS = $(SOURCES:.c=.asm)
-DEPEN = $(SOURCES:.c=.d)                          
-CLEANS = $(TARGET).o $(TARGET).out $(TARGET).map 
+DEPNS = $(SOURCES:.c=.d)                          
+
 %.o : %.c
 	$(CC) $(INCLUDES) -c $< $(CFLAGS) -o $@
 
@@ -95,13 +93,13 @@ CLEANS = $(TARGET).o $(TARGET).out $(TARGET).map
 build: all
 
 .PHONY: all
-all: $(TARGET).out $(DEPEN)
+all: $(TARGET).out $(DEPNS)
 
 $(TARGET).out: $(OBJS)
 	$(CC) $(INCLUDES) $(OBJS) $(CFLAGS)  $(LDFLAGS) -o $@
 	$(SIZE) -Atd $(OBJS) $(TARGET).out
 
-$(DEPEN): $(SOURCES)
+$(DEPNS): $(SOURCES)
 	@set -e; rm -f $@; \
 	$(CC) $(INCLUDES) -MM $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
